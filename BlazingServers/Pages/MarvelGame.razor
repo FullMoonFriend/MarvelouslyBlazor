@@ -1,0 +1,101 @@
+﻿@page "/marvelGame"
+@using BlazingServers.Data
+@inject MarvelComicService MarvelComicService
+
+<PageTitle>Marvel Game</PageTitle>
+
+<h1>Marvel Character Guessing Game</h1>
+
+@if (gameStarted)
+{
+    @if (currentQuestion < totalQuestions)
+    {
+        <div>
+            <h3>@($"Question {currentQuestion + 1} of {totalQuestions}")</h3>
+            <p>@($"Which character is from the series '{currentSeries.title}'?")</p>
+            <ul>
+                @foreach (var option in options)
+                {
+                    <li>
+                        <button class="btn btn-outline-primary" @onclick="() => SelectOption(option)">
+                            @option.name
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+    else
+    {
+        <div>
+            <h3>Game Over!</h3>
+            <p>Your score: @score/@totalQuestions</p>
+            <button class="btn btn-primary" @onclick="RestartGame">Play Again</button>
+        </div>
+    }
+}
+else
+{
+    <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
+}
+
+@code {
+    private bool gameStarted = false;
+    private int currentQuestion = 0;
+    private int totalQuestions = 10;
+    private int score = 0;
+    private MarvelSeriesResponse.Result currentSeries;
+    private List<MarvelCharacterResponse.Result> options = new List<MarvelCharacterResponse.Result>();
+
+    private async Task StartGame()
+    {
+        gameStarted = true;
+        currentQuestion = 0;
+        score = 0;
+        await LoadNextQuestion();
+    }
+
+    private async Task LoadNextQuestion()
+    {
+        currentSeries = await MarvelComicService.GetRandomSeriesAsync();
+        var charactersInSeries = await MarvelComicService.GetCharactersBySeriesAsync(currentSeries.id);
+        options.Clear();
+
+        // Add the correct character
+        var correctCharacter = charactersInSeries[new Random().Next(charactersInSeries.Count)];
+        options.Add(correctCharacter);
+
+        // Add incorrect characters
+        while (options.Count < 4)
+        {
+            var randomCharacter = await MarvelComicService.GetRandomCharacterAsync();
+            if (!options.Any(c => c.id == randomCharacter.id))
+            {
+                options.Add(randomCharacter);
+            }
+        }
+
+        // Shuffle the options
+        options = options.OrderBy(x => new Random().Next()).ToList();
+    }
+
+    private async Task SelectOption(MarvelCharacterResponse.Result selectedCharacter)
+    {
+        if (selectedCharacter.id == currentSeries.id)
+        {
+            score++;
+        }
+
+        currentQuestion++;
+
+        if (currentQuestion < totalQuestions)
+        {
+            await LoadNextQuestion();
+        }
+    }
+
+    private void RestartGame()
+    {
+        gameStarted = false;
+    }
+}

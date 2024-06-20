@@ -1,0 +1,226 @@
+﻿@page "/marvelGames"
+@using BlazingServers.Data
+@inject MarvelComicService MarvelComicService
+
+<PageTitle>Marvel Game</PageTitle>
+
+<h1>Marvel Character Guessing Game</h1>
+
+@if (isLoading)
+{
+    <div class="loading-overlay">
+        @if (isEvaluatingResponse)
+        {
+            <div class="response-symbol @responseSymbolClass">
+                @responseSymbol
+            </div>
+        }
+        else
+        {
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        }
+    </div>
+}
+else
+{
+    @if (gameStarted)
+    {
+        @if (currentQuestion < totalQuestions)
+        {
+            <div class="wrapper">
+                <h3>@($"Question {currentQuestion + 1} of {totalQuestions}")</h3>
+                <div class="series-image-container">
+                    <img src="@($"{currentSeries?.thumbnail.path}.{currentSeries?.thumbnail.extension}")" class="series-img" alt="@currentSeries?.title" />
+                </div>
+                <p>@($"Which character is from the series '{currentSeries?.title}'?")</p>
+                <div class="options-grid">
+                    @foreach (var option in options)
+                    {
+                        <div class="option-item @selectedClass" @onclick="() => SelectOption(option.Key)">
+                            <img src="@($"{option.Key.thumbnail.path}.{option.Key.thumbnail.extension}")" class="option-img" alt="@option.Key.name" />
+                            <p>@option.Key.name</p>
+                        </div>
+                    }
+                </div>
+                <div class="answer-history">
+                    @foreach (var answer in answerHistory)
+                    {
+                        <span class="answer-symbol">@answer</span>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div>
+                <h3>Game Over!</h3>
+                <p>Your score: @score/@totalQuestions</p>
+                <button class="btn btn-primary" @onclick="RestartGame">Play Again</button>
+            </div>
+        }
+    }
+    else
+    {
+        <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
+    }
+}
+
+<!-- Loading icon for the next round -->
+@if (isNextRoundLoading)
+{
+    <div class="next-round-loading">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading next round...</span>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = false;
+    private bool gameStarted = false;
+    private bool isEvaluatingResponse = false;
+    private bool isNextRoundLoading = false; // New flag for next round loading
+    private int currentQuestion = 0;
+    private int totalQuestions = 10;
+    private int score = 0;
+    private MarvelSeriesResponse.Result? currentSeries;
+    private MarvelSeriesResponse.Result? nextSeries;
+    private List<KeyValuePair<MarvelCharacterResponse.Result, bool>> options = new List<KeyValuePair<MarvelCharacterResponse.Result, bool>>();
+    private List<KeyValuePair<MarvelCharacterResponse.Result, bool>> nextOptions = new List<KeyValuePair<MarvelCharacterResponse.Result, bool>>();
+    private string selectedClass = string.Empty;
+    private string responseSymbol = string.Empty;
+    private string responseSymbolClass = string.Empty;
+    private List<string> answerHistory = new List<string>();
+
+    private async Task StartGame()
+    {
+        gameStarted = true;
+        currentQuestion = 0;
+        score = 0;
+        answerHistory.Clear();
+        await LoadNextQuestion();
+    }
+
+    private async Task LoadNextQuestion()
+    {
+        isLoading = true;
+        isEvaluatingResponse = false;
+        StateHasChanged();
+
+        // Use preloaded data if available
+        if (nextSeries != null && nextOptions.Count > 0)
+        {
+            currentSeries = nextSeries;
+            options = new List<KeyValuePair<MarvelCharacterResponse.Result, bool>>(nextOptions);
+            Console.WriteLine("Using preloaded data for the next question.");
+        }
+        else
+        {
+            await FetchNextQuestionData();
+            currentSeries = nextSeries;
+            options = new List<KeyValuePair<MarvelCharacterResponse.Result, bool>>(nextOptions);
+            Console.WriteLine("Fetching new data for the next question.");
+        }
+
+        // Preload data for the next round
+        _ = FetchNextQuestionData();
+
+        isLoading = false;
+    }
+
+    private async Task FetchNextQuestionData()
+    {
+        isNextRoundLoading = true;
+        StateHasChanged();
+
+        nextSeries = await MarvelComicService.GetRandomSeriesAsync();
+        if (nextSeries != null)
+        {
+            var charactersInSeries = await MarvelComicService.GetCharactersBySeriesAsync(nextSeries.id);
+            nextOptions.Clear();
+
+            if (charactersInSeries.Count > 0)
+            {
+                // Add the correct character
+                var correctCharacterIndex = new Random().Next(charactersInSeries.Count);
+                var correctCharacter = charactersInSeries[correctCharacterIndex];
+                nextOptions.Add(new KeyValuePair<MarvelCharacterResponse.Result, bool>(correctCharacter, true));
+
+                // Add incorrect characters
+                while (nextOptions.Count < 4)
+                {
+                    var randomCharacter = await MarvelComicService.GetRandomCharacterAsync();
+                    if (randomCharacter != null && !nextOptions.Any(c => c.Key.id == randomCharacter.id))
+                    {
+                        nextOptions.Add(new KeyValuePair<MarvelCharacterResponse.Result, bool>(randomCharacter, false));
+                    }
+                }
+
+                // Shuffle the options
+                nextOptions = nextOptions.OrderBy(x => new Random().Next()).ToList();
+            }
+            else
+            {
+                Console.WriteLine("No characters found in the series. Fetching new data.");
+                await FetchNextQuestionData();
+            }
+        }
+        else
+        {
+            Console.WriteLine("No series found. Fetching new data.");
+            await FetchNextQuestionData();
+        }
+
+        isNextRoundLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task SelectOption(MarvelCharacterResponse.Result selectedCharacter)
+    {
+        isLoading = true;
+        isEvaluatingResponse = true;
+        StateHasChanged();
+
+        var isCorrect = options.FirstOrDefault(o => o.Key.id == selectedCharacter.id).Value;
+        if (isCorrect)
+        {
+            responseSymbol = "✔";
+            responseSymbolClass = "correct-symbol";
+            selectedClass = "correct";
+            score++;
+            answerHistory.Add("✔");
+        }
+        else
+        {
+            responseSymbol = "✘";
+            responseSymbolClass = "wrong-symbol";
+            selectedClass = "wrong";
+            answerHistory.Add("✘");
+        }
+
+        StateHasChanged();
+        await Task.Delay(1000); // Flash for 1 second
+        selectedClass = string.Empty;
+        isEvaluatingResponse = false;
+
+        currentQuestion++;
+
+        if (currentQuestion < totalQuestions)
+        {
+            await LoadNextQuestion();
+        }
+
+        isLoading = false;
+    }
+
+    private void RestartGame()
+    {
+        gameStarted = false;
+        currentSeries = null;
+        nextSeries = null;
+        options.Clear();
+        nextOptions.Clear();
+    }
+}

@@ -1,0 +1,145 @@
+﻿@page "/storyDetails/{storyId:int}"
+@using BlazingServers.Data
+@inject MarvelComicService MarvelComicService
+@inject NavigationManager Navigation
+
+<PageTitle>Story Details</PageTitle>
+
+<h1>Story Details</h1>
+
+@if (story != null)
+{
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">@story.title</h5>
+            <p class="card-text">@story.description</p>
+            <p class="card-text"><strong>Modified:</strong> @story.modified</p>
+            <p class="card-text"><strong>Type:</strong> @story.type</p>
+        </div>
+        <ul class="list-group list-group-flush">
+            @if (story.comics.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Comics:</strong>
+                    <ul>
+                        @foreach (var comic in story.comics.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToComicDetails(comic.resourceURI)">
+                                    @comic.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (story.series.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Series:</strong>
+                    <ul>
+                        @foreach (var series in story.series.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToSeriesDetails(series.resourceURI)">
+                                    @series.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (story.characters.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Characters:</strong>
+                    <ul>
+                        @foreach (var character in story.characters.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToCharacterDetails(character.resourceURI)">
+                                    @character.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (story.creators.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Creators:</strong>
+                    <ul>
+                        @foreach (var creator in story.creators.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToCreatorDetails(creator.resourceURI)">
+                                    @creator.name (@creator.role)
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (story.events.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Events:</strong>
+                    <ul>
+                        @foreach (var evt in story.events.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToEventDetails(evt.resourceURI)">
+                                    @evt.name
+                                    </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+        </ul>
+    </div>
+}
+else
+{
+    <p><em>Loading...</em></p>
+}
+
+@code {
+        [Parameter] public int storyId { get; set; }
+    private MarvelStoriesResponse.Result? story;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        story = await MarvelComicService.GetStoryByIdAsync(storyId);
+    }
+
+    private void NavigateToComicDetails(string resourceUri)
+    {
+        var comicId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/comicDetails/{comicId}");
+    }
+
+    private void NavigateToSeriesDetails(string resourceUri)
+    {
+        var seriesId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/seriesDetails/{seriesId}");
+    }
+
+    private void NavigateToCharacterDetails(string resourceUri)
+    {
+        var characterId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/characterDetails/{characterId}");
+    }
+
+    private void NavigateToCreatorDetails(string resourceUri)
+    {
+        var creatorId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/creatorDetails/{creatorId}");
+    }
+    private void NavigateToEventDetails(string resourceUri)
+    {
+        var eventId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/eventDetails/{eventId}");
+    }
+}

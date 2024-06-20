@@ -1,0 +1,133 @@
+﻿@page "/creatorDetails/{creatorId:int}"
+@using BlazingServers.Data
+@inject MarvelComicService MarvelComicService
+@inject NavigationManager Navigation
+
+<PageTitle>Creator Details</PageTitle>
+
+<h1>Creator Details</h1>
+
+@if (creator != null)
+{
+    <div class="card">
+        <img src="@($"{creator.thumbnail.path}.{creator.thumbnail.extension}")" class="card-img-top img-fluid" alt="@creator.fullName" style="width: 25%;">
+        <div class="card-body">
+            <h5 class="card-title">Name: @creator.fullName</h5>
+            <p class="card-text">@creator.suffix</p>
+        </div>
+        <ul class="list-group list-group-flush">
+            @if (creator.comics.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Comics:</strong>
+                    <ul>
+                        @foreach (var comic in creator.comics.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToComicDetails(comic.resourceURI)">
+                                    @comic.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (creator.series.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Series:</strong>
+                    <ul>
+                        @foreach (var series in creator.series.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToSeriesDetails(series.resourceURI)">
+                                    @series.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (creator.stories.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Stories:</strong>
+                    <ul>
+                        @foreach (var story in creator.stories.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToStoryDetails(story.resourceURI)">
+                                    @story.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (creator.events.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Events:</strong>
+                    <ul>
+                        @foreach (var evt in creator.events.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToEventDetails(evt.resourceURI)">
+                                    @evt.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+                <li class="list-group-item">
+                    <strong>URLs:</strong>
+                    <ul>
+                        @foreach (var url in creator.urls)
+                        {
+                            <li>
+                                <a href="@url.url">@url.type</a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            
+        </ul>
+    </div>
+}
+else
+{
+    <p><em>Loading...</em></p>
+}
+
+@code {
+    [Parameter] public int creatorId { get; set; }
+    private MarvelCreatorResponse.Result? creator;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        creator = await MarvelComicService.GetCreatorByIdAsync(creatorId);
+    }
+
+    private void NavigateToComicDetails(string resourceUri)
+    {
+        var comicId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/comicDetails/{comicId}");
+    }
+
+    private void NavigateToSeriesDetails(string resourceUri)
+    {
+        var seriesId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/seriesDetails/{seriesId}");
+    }
+    private void NavigateToStoryDetails(string resourceUri)
+    {
+        var storyId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/storyDetails/{storyId}");
+    }
+    private void NavigateToEventDetails(string resourceUri)
+    {
+        var eventId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/eventDetails/{eventId}");
+    }
+}

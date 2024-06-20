@@ -1,0 +1,172 @@
+﻿@page "/eventDetails/{eventId:int}"
+@using BlazingServers.Data
+@inject MarvelComicService MarvelComicService
+@inject NavigationManager Navigation
+
+<PageTitle>Event Details</PageTitle>
+
+<h1>Event Details</h1>
+
+@if (eventDetails != null)
+{
+    <div class="card">
+        <img src="@($"{eventDetails.thumbnail.path}.{eventDetails.thumbnail.extension}")" class="card-img-top img-fluid" alt="@eventDetails.title" style="width: 50%;">
+        <div class="card-body">
+            <h5 class="card-title">@eventDetails.title</h5>
+            <p class="card-text">@eventDetails.description</p>
+            <p class="card-text"><strong>Start Date:</strong> @eventDetails.start.ToString()</p>
+            <p class="card-text"><strong>End Date:</strong> @eventDetails.end.ToString()</p>
+
+            <p class="card-text"><strong>Previous Event:</strong> <a href="#" @onclick="() => NavigateToEventDetails(eventDetails.previous.resourceURI)"> @eventDetails.previous.name </a> </p>
+            <p class="card-text"><strong>Next Event:</strong> <a href="#" @onclick="() => NavigateToEventDetails(eventDetails.next.resourceURI)"> @eventDetails.next.name </a> </p>
+        </div>
+        <ul class="list-group list-group-flush">
+            @if (eventDetails.comics.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Comics:</strong>
+                    <ul>
+                        @foreach (var comic in eventDetails.comics.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToComicDetails(comic.resourceURI)">
+                                    @comic.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (eventDetails.series.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Series:</strong>
+                    <ul>
+                        @foreach (var series in eventDetails.series.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToSeriesDetails(series.resourceURI)">
+                                    @series.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (eventDetails.stories.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Stories:</strong>
+                    <ul>
+                        @foreach (var story in eventDetails.stories.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToStoryDetails(story.resourceURI)">
+                                    @story.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (eventDetails.characters.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Characters:</strong>
+                    <ul>
+                        @foreach (var character in eventDetails.characters.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToCharacterDetails(character.resourceURI)">
+                                    @character.name
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (eventDetails.creators.items.Any())
+            {
+                <li class="list-group-item">
+                    <strong>Creators:</strong>
+                    <ul>
+                        @foreach (var creator in eventDetails.creators.items)
+                        {
+                            <li>
+                                <a href="#" @onclick="() => NavigateToCreatorDetails(creator.resourceURI)">
+                                    @creator.name (@creator.role)
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            @if (eventDetails.urls.Any())
+            {
+                <li class="list-group-item">
+                    <strong>URLS:</strong>
+                    <ul>
+                        @foreach (var url in eventDetails.urls)
+                        {
+                            <li>
+                                <a href="@url.url">
+                                    @url.type
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+        </ul>
+    </div>
+}
+else
+{
+    <p><em>Loading...</em></p>
+}
+
+@code {
+    [Parameter] public int eventId { get; set; }
+    private MarvelEventResponse.Result? eventDetails;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        eventDetails = await MarvelComicService.GetEventByIdAsync(eventId);
+    }
+
+    private void NavigateToComicDetails(string resourceUri)
+    {
+        var comicId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/comicDetails/{comicId}");
+    }
+
+    private void NavigateToSeriesDetails(string resourceUri)
+    {
+        var seriesId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/seriesDetails/{seriesId}");
+    }
+
+    private void NavigateToStoryDetails(string resourceUri)
+    {
+        var storyId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/storyDetails/{storyId}");
+    }
+
+    private void NavigateToCharacterDetails(string resourceUri)
+    {
+
+        var characterId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/characterDetails/{characterId}");
+    }
+    private void NavigateToCreatorDetails(string resourceUri)
+    {
+        var creatorId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/creatorDetails/{creatorId}");
+    }
+    private void NavigateToEventDetails(string resourceUri)
+    {
+        // Extract the event ID from the resource URI
+        var eventId = int.Parse(resourceUri.Split('/').Last());
+        Navigation.NavigateTo($"/eventDetails/{eventId}");
+    }
+}
