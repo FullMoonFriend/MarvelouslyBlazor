@@ -32,14 +32,13 @@ namespace BlazingServers.Data
         }
         public async Task<MarvelResponse.Rootobject> SearchComicByNameAsync(string name)
         {
-            using (var client = new HttpClient())
-            {
+
                 string ts = DateTime.Now.Ticks.ToString();
                 string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
 
                 string url = $"http://gateway.marvel.com/v1/public/characters?ts={ts}&apikey={_settings.PublicKey}&hash={hash}&nameStartsWith={name}";
 
-                HttpResponseMessage response = await client.GetAsync(url);
+                HttpResponseMessage response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -55,27 +54,22 @@ namespace BlazingServers.Data
                     // Deserialize the data into MarvelResponse.Rootobject
                     var marvelResponse = JsonSerializer.Deserialize<MarvelResponse.Rootobject>(data, options);
 
-                    // strip all image url from the results for an image collection
-                    var imageUrls = await GetImagesFromResults(marvelResponse);
-
                     return marvelResponse;
                 }
                 else
                 {
                     return new MarvelResponse.Rootobject();
                 }
-            }
+            
         }
         public async Task<MarvelSeriesResponse.Result> SearchSeriesByNameAsync(string name)
         {
-            using (var client = new HttpClient())
-            {
                 string ts = DateTime.Now.Ticks.ToString();
                 string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
 
                 string url = $"http://gateway.marvel.com/v1/public/series?ts={ts}&apikey={_settings.PublicKey}&hash={hash}&titleStartsWith={name}";
 
-                HttpResponseMessage response = await client.GetAsync(url);
+                HttpResponseMessage response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -96,15 +90,13 @@ namespace BlazingServers.Data
                 {
                     return new MarvelSeriesResponse.Result();
                 }
-            }
         }
         public async Task<MarvelResponse.Result?> GetCharacterByIdAsync(int characterId)
         {
-            using (var client = new HttpClient())
-            {
+
                 string ts = DateTime.Now.Ticks.ToString();
                 string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
-                var response = await client.GetAsync($"http://gateway.marvel.com/v1/public/characters/{characterId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}");
+                var response = await _httpClient.GetAsync($"http://gateway.marvel.com/v1/public/characters/{characterId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}");
                 if (response.IsSuccessStatusCode)
                 {
                     var options = new JsonSerializerOptions
@@ -118,23 +110,7 @@ namespace BlazingServers.Data
                     var jsonResponse = JsonSerializer.Deserialize<MarvelResponse.Rootobject>(responseString, options);
                     return jsonResponse?.data.results.FirstOrDefault();
                 }
-            }
             return null;
-        }
-
-        public async Task<List<string>> GetImagesFromResults(MarvelResponse.Rootobject marvelResponse)
-        {
-            List<string> imageUrls = new List<string>();
-            foreach (var result in marvelResponse.data.results)
-            {
-                if (result.thumbnail != null)
-                {
-                    // further confirm that none of the images contain 'image_not_available', as we don't want to display those
-                    if (!result.thumbnail.path.Contains("image_not_available"))
-                        imageUrls.Add(result.thumbnail.path + "." + result.thumbnail.extension);
-                }
-            }
-            return imageUrls;
         }
 
         public async Task<MarvelComicResponse.Result?> GetComicByIdAsync(int comicId)
@@ -199,7 +175,6 @@ namespace BlazingServers.Data
 
         public async Task<List<MarvelCharacterResponse.Result>> GetCharactersBySeriesAsync(int seriesId)
         {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
             var url = $"http://gateway.marvel.com/v1/public/series/{seriesId}/characters?ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
@@ -219,24 +194,19 @@ namespace BlazingServers.Data
             }
             return new List<MarvelCharacterResponse.Result>();
         }
-
-        public bool IsImageAvailable(MarvelCharacterResponse.Result character)
+        public async Task<List<MarvelCharacterResponse.Result>> GetRandomCharactersAsync(int numberOfCharacters)
         {
-            return character.thumbnail != null && !character.thumbnail.path.Contains("image_not_available");
-        }
-
-        public async Task<MarvelCharacterResponse.Result?> GetRandomCharacterAsync()
-        {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
 
-            MarvelCharacterResponse.Result? character = null;
+            List<MarvelCharacterResponse.Result> characters = new List<MarvelCharacterResponse.Result>();
+            int retries = 0;
+            const int maxRetries = 5; // Limit the number of retries to prevent infinite loops
 
-            do
+            while (characters.Count < numberOfCharacters && retries < maxRetries)
             {
-                int offset = new Random().Next(0, 1000); // Adjust as needed for your data size
-                var url = $"http://gateway.marvel.com/v1/public/characters?limit=1&offset={offset}&ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
+                int offset = new Random().Next(0, 1564); // Adjust as needed for your data size
+                var url = $"http://gateway.marvel.com/v1/public/characters?limit=10&offset={offset}&ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
                 var response = await _httpClient.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
@@ -249,18 +219,31 @@ namespace BlazingServers.Data
                     };
                     var responseString = await response.Content.ReadAsStringAsync();
                     var jsonResponse = JsonSerializer.Deserialize<MarvelCharacterResponse.Rootobject>(responseString, options);
-                    character = jsonResponse?.data.results.FirstOrDefault();
+                    if (jsonResponse != null)
+                    {
+                        var validCharacters = jsonResponse.data.results.Where(IsImageAvailable).ToList();
+                        characters.AddRange(validCharacters);
+                        // Break the loop if we have enough characters
+                        if (characters.Count >= numberOfCharacters)
+                        {
+                            break;
+                        }
+                    }
                 }
+                retries++;
+            }
 
-            } while (character != null && !IsImageAvailable(character));
+            return characters.Take(numberOfCharacters).ToList(); // Ensure we return only the requested number of characters
+        }
 
-            return character;
+        public bool IsImageAvailable(MarvelCharacterResponse.Result character)
+        {
+            return character.thumbnail != null && !character.thumbnail.path.Contains("image_not_available");
         }
 
 
         public async Task<MarvelSeriesResponse.Result?> GetSeriesByIdAsync(int seriesId)
         {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
             var url = $"http://gateway.marvel.com/v1/public/series/{seriesId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
@@ -282,7 +265,6 @@ namespace BlazingServers.Data
         }
         public async Task<MarvelCreatorResponse.Result?> GetCreatorByIdAsync(int creatorId)
         {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
             var url = $"http://gateway.marvel.com/v1/public/creators/{creatorId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
@@ -305,7 +287,6 @@ namespace BlazingServers.Data
 
         public async Task<MarvelStoriesResponse.Result?> GetStoryByIdAsync(int storyId)
         {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
             var url = $"http://gateway.marvel.com/v1/public/stories/{storyId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}";
@@ -328,7 +309,6 @@ namespace BlazingServers.Data
 
         public async Task<MarvelEventResponse.Result?> GetEventByIdAsync(int eventId)
         {
-            using var _httpClient = new HttpClient();
             string ts = DateTime.Now.Ticks.ToString();
             string hash = GenerateMd5Hash(ts, _settings.PrivateKey, _settings.PublicKey);
             var url = $"http://gateway.marvel.com/v1/public/events/{eventId}?ts={ts}&apikey={_settings.PublicKey}&hash={hash}";

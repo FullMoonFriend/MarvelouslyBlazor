@@ -148,13 +148,18 @@ else
                 var correctCharacter = charactersInSeries[correctCharacterIndex];
                 nextOptions.Add(new KeyValuePair<MarvelCharacterResponse.Result, bool>(correctCharacter, true));
 
-                // Add incorrect characters
-                while (nextOptions.Count < 4)
+                // Fetch 3 incorrect characters in one go
+                var randomCharacters = await MarvelComicService.GetRandomCharactersAsync(3);
+                foreach (var randomCharacter in randomCharacters)
                 {
-                    var randomCharacter = await MarvelComicService.GetRandomCharacterAsync();
-                    if (randomCharacter != null && !nextOptions.Any(c => c.Key.id == randomCharacter.id))
+                    if (!nextOptions.Any(c => c.Key.id == randomCharacter.id))
                     {
                         nextOptions.Add(new KeyValuePair<MarvelCharacterResponse.Result, bool>(randomCharacter, false));
+                    }
+
+                    if (nextOptions.Count >= 4)
+                    {
+                        break;
                     }
                 }
 
